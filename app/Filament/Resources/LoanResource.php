@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\LoanResource\Pages;
 use App\Filament\Resources\LoanResource\RelationManagers;
+use App\Models\Book;
 use App\Models\Loan;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -16,6 +17,8 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Repeater;
+
 use Illuminate\Support\Carbon;
 
 class LoanResource extends Resource
@@ -30,30 +33,60 @@ class LoanResource extends Resource
     {
         return $form
             ->schema([
-            Select::make('member_id')
-                ->relationship('member', 'name')
-                ->searchable()
-                ->required(),
-            DatePicker::make('loan_date')
-                ->required()
-                ->reactive()
-                ->afterStateUpdated(function ($state, callable $set) {
-                    if ($state) {
-                        $set('due_date', Carbon::parse($state)->addDays(7)->format('Y-m-d'));
-                    }
-                }),
-            DatePicker::make('due_date')
-                ->required()
-                ->dehydrated(true)
-                ->readOnly()
-                ->visible(),
+                Forms\Components\Select::make('member_id')
+                    ->relationship('member', 'name')
+                    ->searchable()
+                    ->required(),
 
-            DatePicker::make('return_date'),
-            Select::make('status')
-                ->options([
-                    'borrowed' => 'Borrowed',
-                    'returned' => 'Returned',
-                ])->required(),
+                Forms\Components\DatePicker::make('loan_date')
+                    ->required()
+                    ->reactive()
+                    ->afterStateUpdated(function ($state, callable $set) {
+                        if ($state) {
+                            $set('due_date', Carbon::parse($state)->addDays(7)->format('Y-m-d'));
+                        }
+                    }),
+
+                Forms\Components\DatePicker::make('due_date')
+                    ->readOnly()
+                    ->required(),
+
+                Forms\Components\DatePicker::make('return_date'),
+
+                Forms\Components\Select::make('status')
+                    ->options([
+                        'borrowed' => 'Borrowed',
+                        'returned' => 'Returned',
+                    ])
+                    ->default('borrowed')
+                    ->required(),
+
+                // Repeater LoanItems
+                Repeater::make('items')
+                    ->label('Books Borrowed')
+                    ->relationship('details') // relasi ke loan_details
+                    ->schema([
+                        Forms\Components\Select::make('book_id')
+                            ->label('Book')
+                            ->relationship('book', 'title')
+                            ->required()
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                $book = Book::find($state);
+                                if ($book && $book->stock <= 0) {
+                                    throw new \Exception('Stok buku habis.');
+                                }
+                            }),
+
+                        Forms\Components\TextInput::make('quantity')
+                            ->label('Quantity')
+                            ->numeric()
+                            ->minValue(1)
+                            ->default(1)
+                            ->required(),
+                    ])
+                    ->defaultItems(1)
+                    ->minItems(1),
             ]);
     }
 
@@ -61,30 +94,23 @@ class LoanResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('member.name')->label('Member'),
-                TextColumn::make('loan_date')->date(),
-                TextColumn::make('due_date')->date(),
-                TextColumn::make('return_date')->date(),
-                TextColumn::make('status')
-                ->badge()
-                ->color(fn (string $state): string => match ($state) {
-                    'borrowed' => 'gray',
-                    'returned' => 'success',
-                })
-
-
+                Tables\Columns\TextColumn::make('member.name')->label('Member'),
+                Tables\Columns\TextColumn::make('loan_date')->date(),
+                Tables\Columns\TextColumn::make('due_date')->date(),
+                Tables\Columns\TextColumn::make('return_date')->date(),
+                Tables\Columns\TextColumn::make('status')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'borrowed' => 'danger',
+                        'returned' => 'success',
+                    }),
             ])
-            ->filters([
-                //
-            ])
+            ->filters([])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                Tables\Actions\DeleteBulkAction::make(),
             ]);
     }
 
