@@ -11,6 +11,8 @@ use Filament\Tables\Table;
 use Filament\Forms\Components\TextInput;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Forms\Components\Textarea;
+use Illuminate\Database\Eloquent\Model;
+use Spatie\Permission\Models\Role;
 
 class MemberResource extends Resource
 {
@@ -26,6 +28,10 @@ class MemberResource extends Resource
             ->schema([
                 TextInput::make('name')->required()->placeholder('Enter a Name Member'),
                 TextInput::make('email')->required()->placeholder('Enter a Email Member')->email(),
+                TextInput::make('password')
+                    ->required()
+                    ->password()
+                    ->dehydrateStateUsing(fn($state) => bcrypt($state)),
                 TextInput::make('phone')->placeholder('Enter a Number Phone Member')->numeric(),
                 Textarea::make('address')->placeholder('Enter a Address Member'),
             ]);
